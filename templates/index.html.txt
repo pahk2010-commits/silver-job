@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>노인 일자리 안내</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f6f9; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; color: #333; font-size: 2.5rem; }
+        .job-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .job-title { font-size: 1.8rem; color: #007bff; font-weight: bold; margin-bottom: 10px; }
+        .job-details { font-size: 1.2rem; color: #555; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👴👵 실시간 노인 일자리 목록</h1>
+        {% for job in jobs %}
+        <div class="job-card">
+            <div class="job-title">📌 {{ job.title }}</div>
+            <div class="job-details">
+                <p>📍 <b>근무 지역:</b> {{ job.location }}</p>
+                <p>💰 <b>급여 수준:</b> {{ job.pay }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
