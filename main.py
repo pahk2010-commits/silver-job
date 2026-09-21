@@ -2,23 +2,15 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import requests
 import xml.etree.ElementTree as ET
-import urllib.parse
 import os
 import asyncio
 from datetime import datetime
+from html import escape
 
 app = FastAPI()
 
-# =========================================================
-# 실시간 일자리 저장소
-# =========================================================
 LIVE_JOB_CACHE = []
 
-
-# =========================================================
-# 예비 데이터
-# API가 일시적으로 실패했을 때 화면이 완전히 비어버리지 않도록 사용
-# =========================================================
 FALLBACK_JOBS = [
     {
         "type": "👵👴 정부 지원형",
@@ -39,20 +31,17 @@ FALLBACK_JOBS = [
 ]
 
 
-# =========================================================
-# 고용24 실시간 채용정보 API
-# =========================================================
 def fetch_employment24_jobs():
 
     EMPLOYMENT24_KEY = os.getenv(
-        "EMPLOYMENT24_KEY", ""
+        "EMPLOYMENT24_KEY",
+        ""
     ).strip()
 
     if not EMPLOYMENT24_KEY:
         print("[고용24] EMPLOYMENT24_KEY가 없습니다.")
         return []
 
-    # 고용24 공식 채용정보 목록 API
     url = (
         "https://www.work24.go.kr/"
         "cm/openApi/call/wk/"
@@ -65,8 +54,6 @@ def fetch_employment24_jobs():
         "returnType": "XML",
         "startPage": "1",
         "display": "100",
-
-        # (준)고령자(50세 이상)
         "pfPreferential": "B"
     }
 
@@ -85,18 +72,27 @@ def fetch_employment24_jobs():
             response.status_code
         )
 
-        # HTTP 오류
         if response.status_code != 200:
 
             print(
                 "[고용24] HTTP 오류:",
-                response.text[:500]
+                response.text[:1000]
             )
 
             return []
 
-        # XML 변환
+        print(
+            "[고용24] 응답 길이:",
+            len(response.content)
+        )
+
+        print(
+            "[고용24] 응답 앞부분:",
+            response.text[:2000]
+        )
+
         try:
+
             root = ET.fromstring(
                 response.content
             )
@@ -115,13 +111,12 @@ def fetch_employment24_jobs():
 
             return []
 
-        # API에서 제공하는 채용공고
         wanted_list = root.findall(
             ".//wanted"
         )
 
         print(
-            "[고용24] 채용공고 수:",
+            "[고용24] 현재 방식으로 찾은 채용공고 수:",
             len(wanted_list)
         )
 
@@ -129,7 +124,6 @@ def fetch_employment24_jobs():
 
         for item in wanted_list:
 
-            # 공식 API 필드
             company = (
                 item.findtext("company")
                 or item.findtext("corpNm")
@@ -151,20 +145,13 @@ def fetch_employment24_jobs():
                 or "채용시까지"
             ).strip()
 
-            # 고용24 실제 채용공고 URL
             wanted_url = (
-                item.findtext(
-                    "wantedInfoUrl"
-                )
+                item.findtext("wantedInfoUrl")
                 or ""
             ).strip()
 
-            # URL이 없는 경우 고용24 검색 페이지로 연결
             if not wanted_url:
-
-                wanted_url = (
-                    "https://www.work24.go.kr/"
-                )
+                wanted_url = "https://www.work24.go.kr/"
 
             jobs.append(
                 {
@@ -177,14 +164,16 @@ def fetch_employment24_jobs():
                 }
             )
 
+        print(
+            "[고용24] 최종 변환 채용공고 수:",
+            len(jobs)
+        )
+
         return jobs
 
     except requests.exceptions.Timeout:
 
-        print(
-            "[고용24] API 요청 시간 초과"
-        )
-
+        print("[고용24] API 요청 시간 초과")
         return []
 
     except requests.exceptions.RequestException as e:
@@ -206,14 +195,12 @@ def fetch_employment24_jobs():
         return []
 
 
-# =========================================================
-# 전체 실시간 자료 갱신
-# =========================================================
 def fetch_all_live_jobs():
 
     global LIVE_JOB_CACHE
 
     print("=" * 60)
+
     print(
         "[실시간 갱신 시작]",
         datetime.now().strftime(
@@ -223,9 +210,6 @@ def fetch_all_live_jobs():
 
     new_jobs = []
 
-    # -----------------------------------------------------
-    # 고용24
-    # -----------------------------------------------------
     employment_jobs = fetch_employment24_jobs()
 
     if employment_jobs:
@@ -246,9 +230,6 @@ def fetch_all_live_jobs():
             "[고용24] 가져온 자료가 없습니다."
         )
 
-    # -----------------------------------------------------
-    # 자료가 하나라도 있으면 기존 캐시 교체
-    # -----------------------------------------------------
     if new_jobs:
 
         LIVE_JOB_CACHE = new_jobs
@@ -259,20 +240,12 @@ def fetch_all_live_jobs():
             "건"
         )
 
-    # -----------------------------------------------------
-    # API가 실패했지만 기존 자료가 있는 경우
-    # 기존 자료 유지
-    # -----------------------------------------------------
     elif LIVE_JOB_CACHE:
 
         print(
             "[전체] 새로운 자료가 없어 기존 자료를 유지합니다."
         )
 
-    # -----------------------------------------------------
-    # 처음 실행했는데 API도 실패한 경우
-    # 예비 데이터 사용
-    # -----------------------------------------------------
     else:
 
         LIVE_JOB_CACHE = FALLBACK_JOBS.copy()
@@ -291,9 +264,6 @@ def fetch_all_live_jobs():
     print("=" * 60)
 
 
-# =========================================================
-# 1시간마다 자동 갱신
-# =========================================================
 async def job_scheduler():
 
     while True:
@@ -311,32 +281,23 @@ async def job_scheduler():
                 repr(e)
             )
 
-        # 1시간
         await asyncio.sleep(3600)
 
 
-# =========================================================
-# 서버 시작
-# =========================================================
 @app.on_event("startup")
 async def startup_event():
 
     print("[서버] 애플리케이션 시작")
 
-    # 최초 1회 즉시 실행
     await asyncio.to_thread(
         fetch_all_live_jobs
     )
 
-    # 백그라운드 자동 갱신
     asyncio.create_task(
         job_scheduler()
     )
 
 
-# =========================================================
-# 메인 화면
-# =========================================================
 @app.get(
     "/",
     response_class=HTMLResponse
@@ -350,31 +311,22 @@ def home(search: str = ""):
     if keyword:
 
         filtered_jobs = [
-
             job
             for job in LIVE_JOB_CACHE
-
             if (
-                keyword
-                in job.get(
+                keyword in job.get(
                     "title",
                     ""
                 ).lower()
-
-                or keyword
-                in job.get(
+                or keyword in job.get(
                     "company",
                     ""
                 ).lower()
-
-                or keyword
-                in job.get(
+                or keyword in job.get(
                     "location",
                     ""
                 ).lower()
-
-                or keyword
-                in job.get(
+                or keyword in job.get(
                     "type",
                     ""
                 ).lower()
@@ -385,9 +337,6 @@ def home(search: str = ""):
 
         filtered_jobs = LIVE_JOB_CACHE
 
-    # =====================================================
-    # 채용 카드 생성
-    # =====================================================
     cards = ""
 
     for job in filtered_jobs:
@@ -422,7 +371,31 @@ def home(search: str = ""):
             "https://www.work24.go.kr/"
         )
 
-        # 카드 색상
+        company_html = escape(
+            str(company)
+        )
+
+        title_html = escape(
+            str(title)
+        )
+
+        location_html = escape(
+            str(location)
+        )
+
+        end_date_html = escape(
+            str(end_date)
+        )
+
+        job_type_html = escape(
+            str(job_type)
+        )
+
+        job_url_html = escape(
+            str(job_url),
+            quote=True
+        )
+
         if "정부" in job_type:
 
             color = "#0284c7"
@@ -441,7 +414,7 @@ def home(search: str = ""):
 
         cards += f"""
         <a
-            href="{job_url}"
+            href="{job_url_html}"
             target="_blank"
             rel="noopener noreferrer"
             style="
@@ -457,19 +430,15 @@ def home(search: str = ""):
                     padding:22px;
                     margin-bottom:16px;
                     border-radius:12px;
-                    box-shadow:
-                        0 4px 6px
-                        rgba(0,0,0,0.05);
-                    border:
-                        2px solid #e2e8f0;
+                    box-shadow:0 4px 6px rgba(0,0,0,0.05);
+                    border:2px solid #e2e8f0;
                 "
             >
 
                 <div
                     style="
                         display:flex;
-                        justify-content:
-                            space-between;
+                        justify-content:space-between;
                         align-items:center;
                         margin-bottom:10px;
                         flex-wrap:wrap;
@@ -484,7 +453,7 @@ def home(search: str = ""):
                             font-weight:bold;
                         "
                     >
-                        🏢 {company}
+                        🏢 {company_html}
                     </span>
 
                     <span
@@ -497,7 +466,7 @@ def home(search: str = ""):
                             font-weight:bold;
                         "
                     >
-                        {job_type}
+                        {job_type_html}
                     </span>
 
                 </div>
@@ -506,20 +475,18 @@ def home(search: str = ""):
                     style="
                         font-size:1.45rem;
                         color:#1e293b;
-                        margin:
-                            0 0 12px 0;
+                        margin:0 0 12px 0;
                         font-weight:800;
                         line-height:1.4;
                     "
                 >
-                    {title}
+                    {title_html}
                 </h2>
 
                 <div
                     style="
                         display:flex;
-                        justify-content:
-                            space-between;
+                        justify-content:space-between;
                         font-size:1.05rem;
                         color:#64748b;
                         flex-wrap:wrap;
@@ -528,7 +495,7 @@ def home(search: str = ""):
                 >
 
                     <span>
-                        📍 {location}
+                        📍 {location_html}
                     </span>
 
                     <span
@@ -538,7 +505,7 @@ def home(search: str = ""):
                         "
                     >
                         📅 마감일:
-                        {end_date}
+                        {end_date_html}
                     </span>
 
                 </div>
@@ -548,9 +515,6 @@ def home(search: str = ""):
         </a>
         """
 
-    # =====================================================
-    # 검색 결과가 없는 경우
-    # =====================================================
     if not cards:
 
         cards = """
@@ -562,16 +526,10 @@ def home(search: str = ""):
         </div>
         """
 
-    # =====================================================
-    # 마지막 갱신 시간
-    # =====================================================
     update_time = datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
-    # =====================================================
-    # HTML
-    # =====================================================
     html = f"""
     <!DOCTYPE html>
 
@@ -583,10 +541,7 @@ def home(search: str = ""):
 
         <meta
             name="viewport"
-            content="
-                width=device-width,
-                initial-scale=1.0
-            "
+            content="width=device-width, initial-scale=1.0"
         >
 
         <title>
@@ -600,10 +555,7 @@ def home(search: str = ""):
                     'Malgun Gothic',
                     dotum,
                     sans-serif;
-
-                background-color:
-                    #f8fafc;
-
+                background-color:#f8fafc;
                 margin:0;
                 padding:0;
             }}
@@ -617,29 +569,22 @@ def home(search: str = ""):
             .header {{
                 text-align:center;
                 padding:35px 20px;
-
                 background:
                     linear-gradient(
                         135deg,
                         #059669,
                         #10b981
                     );
-
                 color:white;
-
                 border-radius:16px;
-
                 margin-bottom:24px;
-
                 box-shadow:
                     0 4px 10px
                     rgba(0,0,0,0.1);
             }}
 
             .header h1 {{
-                margin:
-                    0 0 10px 0;
-
+                margin:0 0 10px 0;
                 font-size:2.3rem;
                 font-weight:900;
             }}
@@ -666,12 +611,8 @@ def home(search: str = ""):
                 flex:1;
                 padding:18px;
                 font-size:1.25rem;
-
-                border:
-                    3px solid #cbd5e1;
-
+                border:3px solid #cbd5e1;
                 border-radius:12px;
-
                 font-weight:bold;
             }}
 
@@ -681,52 +622,32 @@ def home(search: str = ""):
             }}
 
             .search-btn {{
-                padding:
-                    0 30px;
-
+                padding:0 30px;
                 font-size:1.25rem;
-
-                background-color:
-                    #10b981;
-
+                background-color:#10b981;
                 color:white;
-
                 border:none;
-
                 border-radius:12px;
-
                 font-weight:bold;
-
                 cursor:pointer;
             }}
 
             .search-btn:hover {{
-                background-color:
-                    #059669;
+                background-color:#059669;
             }}
 
             .no-result {{
                 text-align:center;
-
                 padding:40px;
-
                 font-size:1.2rem;
-
                 color:#64748b;
-
                 font-weight:bold;
-
                 background:white;
-
                 border-radius:12px;
-
-                border:
-                    2px dashed #cbd5e1;
+                border:2px dashed #cbd5e1;
             }}
 
-            @media (
-                max-width:600px
-            ) {{
+            @media (max-width:600px) {{
 
                 .search-box {{
                     flex-direction:column;
@@ -753,8 +674,7 @@ def home(search: str = ""):
             <div class="header">
 
                 <h1>
-                    👵👴
-                    어르신 맞춤 일자리 찾기
+                    👵👴 어르신 맞춤 일자리 찾기
                 </h1>
 
                 <p>
@@ -778,11 +698,8 @@ def home(search: str = ""):
                     type="text"
                     name="search"
                     class="search-input"
-                    placeholder="
-                        예: 삼척, 동해,
-                        청소, 경비
-                    "
-                    value="{keyword}"
+                    placeholder="예: 삼척, 동해, 청소, 경비"
+                    value="{escape(keyword, quote=True)}"
                 >
 
                 <button
@@ -795,9 +712,7 @@ def home(search: str = ""):
             </form>
 
             <div class="job-list">
-
                 {cards}
-
             </div>
 
         </div>
