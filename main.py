@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import requests
+from urllib.parse import unquote
 import xml.etree.ElementTree as ET
 import os
 import asyncio
@@ -14,10 +15,12 @@ API_URL = os.getenv(
     "https://apis.data.go.kr/B552474/SenuriService/getJobList"
 ).strip()
 
-SENIOR_JOB_API_KEY = os.getenv(
-    "SENIOR_JOB_API_KEY",
-    ""
-).strip()
+SENIOR_JOB_API_KEY = unquote(
+    os.getenv(
+        "SENIOR_JOB_API_KEY",
+        ""
+    ).strip()
+)
 
 DEFAULT_ROWS = 100
 REFRESH_SECONDS = 1800
