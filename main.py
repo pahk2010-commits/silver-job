@@ -9,16 +9,15 @@ from html import escape
 
 app = FastAPI()
 
-# =========================================================
-# 한국노인인력개발원 노인 구인정보 API 설정
-# =========================================================
-
 API_URL = os.getenv(
     "SENIOR_JOB_API_URL",
     "https://apis.data.go.kr/B552474/SenuriService/getJobList"
 ).strip()
 
-SENIOR_JOB_API_KEY = os.getenv("SENIOR_JOB_API_KEY", "").strip()
+SENIOR_JOB_API_KEY = os.getenv(
+    "SENIOR_JOB_API_KEY",
+    ""
+).strip()
 
 DEFAULT_ROWS = 100
 REFRESH_SECONDS = 1800
@@ -27,33 +26,11 @@ LIVE_JOB_CACHE = []
 LAST_UPDATE_TIME = ""
 
 
-# =========================================================
-# API가 연결되지 않을 때 표시할 예비자료
-# =========================================================
-
-FALLBACK_JOBS = [
-    {
-        "type": "👵👴 노인일자리",
-        "job_id": "",
-        "company": "한국노인인력개발원",
-        "title": "노인일자리 정보를 불러오는 중입니다.",
-        "location": "전국",
-        "start_date": "",
-        "end_date": "",
-        "deadline": "실시간 자료 확인 중",
-        "employment": "",
-        "accept_method": "",
-        "url": "https://www.seniorro.or.kr/"
-    }
-]
-
-
-# =========================================================
-# 날짜 형식 변환
-# =========================================================
-
 def format_date(value):
-    value = (value or "").strip()
+    if not value:
+        return ""
+
+    value = str(value).strip()
 
     if len(value) == 8 and value.isdigit():
         return (
@@ -67,19 +44,16 @@ def format_date(value):
     return value
 
 
-# =========================================================
-# 노인일자리 API 호출
-# =========================================================
-
 def fetch_senior_jobs(
     page_no=1,
-    num_of_rows=100,
-    search="",
-    region=""
+    num_of_rows=DEFAULT_ROWS,
+    keyword="",
+    area="전국"
 ):
-    if not SENIOR_JOB_API_KEY:
-        print("[노인일자리] SENIOR_JOB_API_KEY가 없습니다.")
-        return []
+    print("[노인일자리] API 호출 시작")
+    print("[노인일자리] 페이지:", page_no)
+    print("[노인일자리] 검색어:", keyword or "전국")
+    print("[노인일자리] 지역:", area)
 
     params = {
         "serviceKey": SENIOR_JOB_API_KEY,
@@ -88,18 +62,6 @@ def fetch_senior_jobs(
         "_type": "xml"
     }
 
-    if search:
-        params["search"] = search
-
-    if region:
-        params["workPlcNm"] = region
-
-    print("=" * 60)
-    print("[노인일자리] API 호출 시작")
-    print("[노인일자리] 페이지:", page_no)
-    print("[노인일자리] 검색어:", search if search else "전국")
-    print("[노인일자리] 지역:", region if region else "전국")
-
     try:
         response = requests.get(
             API_URL,
@@ -107,37 +69,28 @@ def fetch_senior_jobs(
             timeout=20
         )
 
-        print("[노인일자리] HTTP 상태:", response.status_code)
+        safe_url = response.url.replace(
+            SENIOR_JOB_API_KEY,
+            "***KEY***"
+        )
+
+        print(
+            "[노인일자리] 실제 요청 URL:",
+            safe_url
+        )
+
+        print(
+            "[노인일자리] HTTP 상태:",
+            response.status_code
+        )
 
         if response.status_code != 200:
-            print(
-                "[노인일자리] HTTP 오류:",
-                response.text[:1000]
-            )
+            print("[노인일자리] HTTP 오류:")
+            print(response.text[:1000])
             return []
 
-        print(
-            "[노인일자리] 응답 길이:",
-            len(response.content)
-        )
+        root = ET.fromstring(response.content)
 
-        print(
-            "[노인일자리] 응답 앞부분:",
-            response.text[:1000]
-        )
-
-        # XML 파싱
-        try:
-            root = ET.fromstring(response.content)
-
-        except ET.ParseError as e:
-            print(
-                "[노인일자리] XML 파싱 오류:",
-                repr(e)
-            )
-            return []
-
-        # API 결과 확인
         result_code = (
             root.findtext(".//resultCode")
             or ""
@@ -162,7 +115,6 @@ def fetch_senior_jobs(
             print("[노인일자리] API 오류입니다.")
             return []
 
-        # 채용공고 추출
         items = root.findall(".//item")
 
         print(
@@ -173,7 +125,6 @@ def fetch_senior_jobs(
         jobs = []
 
         for item in items:
-
             job_id = (
                 item.findtext("jobId")
                 or ""
@@ -189,9 +140,9 @@ def fetch_senior_jobs(
                 or "채용공고"
             ).strip()
 
-            location = (
+            workplace = (
                 item.findtext("workPlcNm")
-                or "지역정보 없음"
+                or ""
             ).strip()
 
             start_date = (
@@ -209,945 +160,403 @@ def fetch_senior_jobs(
                 or ""
             ).strip()
 
-            employment = (
+            employment_type = (
                 item.findtext("emplymShpNm")
                 or ""
             ).strip()
 
-            accept_method = (
+            apply_method = (
                 item.findtext("acptMthd")
                 or ""
             ).strip()
 
-            # 현재는 개별 공고 주소가 확인되지 않았으므로
-            # 시니어로 메인 페이지를 연결
-            job_url = (
-                "https://www.seniorro.or.kr/"
-            )
-
-            jobs.append(
-                {
-                    "type": "👵👴 노인일자리",
-                    "job_id": job_id,
-                    "company": company,
-                    "title": title,
-                    "location": location,
-                    "start_date": format_date(start_date),
-                    "end_date": format_date(end_date),
-                    "deadline": deadline,
-                    "employment": employment,
-                    "accept_method": accept_method,
-                    "url": job_url
-                }
-            )
-
-        print(
-            "[노인일자리] 최종 변환:",
-            len(jobs),
-            "건"
-        )
-
-        print("=" * 60)
+            jobs.append({
+                "jobId": job_id,
+                "company": company,
+                "title": title,
+                "workplace": workplace,
+                "start_date": format_date(start_date),
+                "end_date": format_date(end_date),
+                "deadline": format_date(deadline),
+                "employment_type": employment_type,
+                "apply_method": apply_method
+            })
 
         return jobs
 
-    except requests.exceptions.Timeout:
-        print("[노인일자리] API 요청 시간 초과")
+    except requests.RequestException as e:
+        print("[노인일자리] 네트워크 오류:", e)
         return []
 
-    except requests.exceptions.RequestException as e:
-        print(
-            "[노인일자리] 네트워크 오류:",
-            repr(e)
-        )
+    except ET.ParseError as e:
+        print("[노인일자리] XML 파싱 오류:", e)
         return []
 
     except Exception as e:
-        print(
-            "[노인일자리] 예상하지 못한 오류:",
-            repr(e)
-        )
+        print("[노인일자리] 예기치 않은 오류:", e)
         return []
 
 
-# =========================================================
-# 실시간 자료 갱신
-# =========================================================
-
 def refresh_live_jobs():
-
     global LIVE_JOB_CACHE
     global LAST_UPDATE_TIME
 
-    print()
-    print("=" * 70)
-
-    print(
-        "[실시간 갱신 시작]",
-        datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-    )
-
     jobs = fetch_senior_jobs(
         page_no=1,
-        num_of_rows=DEFAULT_ROWS
+        num_of_rows=DEFAULT_ROWS,
+        keyword="",
+        area="전국"
     )
 
     if jobs:
-
         LIVE_JOB_CACHE = jobs
-
-        LAST_UPDATE_TIME = (
-            datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+        LAST_UPDATE_TIME = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
         )
 
         print(
-            "[전체] 새로운 자료:",
+            "[전체] 실시간 자료 갱신:",
             len(jobs),
             "건"
         )
 
     else:
-
-        if not LIVE_JOB_CACHE:
-
-            LIVE_JOB_CACHE = (
-                FALLBACK_JOBS.copy()
-            )
-
-            print(
-                "[전체] API 자료가 없어 "
-                "예비자료를 표시합니다."
-            )
-
-        else:
-
-            print(
-                "[전체] 새로운 자료가 없어 "
-                "기존 자료를 유지합니다."
-            )
-
-    print(
-        "[실시간 갱신 완료]",
-        datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
+        print(
+            "[전체] API 자료가 없어 예비자료를 표시합니다."
         )
-    )
-
-    print("=" * 70)
 
 
-# =========================================================
-# 자동 갱신 스케줄러
-# =========================================================
-
-async def job_scheduler():
-
+async def auto_refresh():
     while True:
-
         try:
-            await asyncio.to_thread(
-                refresh_live_jobs
-            )
-
+            refresh_live_jobs()
         except Exception as e:
+            print("[자동갱신 오류]", e)
 
-            print(
-                "[스케줄러 오류]",
-                repr(e)
-            )
+        await asyncio.sleep(REFRESH_SECONDS)
 
-        await asyncio.sleep(
-            REFRESH_SECONDS
-        )
-
-
-# =========================================================
-# 서버 시작
-# =========================================================
 
 @app.on_event("startup")
 async def startup_event():
-
-    print("[서버] 애플리케이션 시작")
-
-    await asyncio.to_thread(
-        refresh_live_jobs
-    )
-
-    asyncio.create_task(
-        job_scheduler()
-    )
+    refresh_live_jobs()
+    asyncio.create_task(auto_refresh())
 
 
-# =========================================================
-# 메인 화면
-# =========================================================
-
-@app.get(
-    "/",
-    response_class=HTMLResponse
-)
-def home(
-    search: str = "",
-    region: str = ""
+@app.get("/", response_class=HTMLResponse)
+async def home(
+    keyword: str = "",
+    area: str = "전국"
 ):
+    keyword = keyword.strip()
+    area = area.strip()
 
-    global LIVE_JOB_CACHE
+    jobs = LIVE_JOB_CACHE
+    filtered_jobs = []
 
-    search = search.strip()
-    region = region.strip()
+    for job in jobs:
+        text = " ".join([
+            job.get("company", ""),
+            job.get("title", ""),
+            job.get("workplace", ""),
+            job.get("employment_type", "")
+        ])
 
-    # -----------------------------------------------------
-    # 검색이 없는 경우
-    # -----------------------------------------------------
+        if keyword and keyword.lower() not in text.lower():
+            continue
 
-    if not search and not region:
+        if area != "전국" and area not in text:
+            continue
 
-        filtered_jobs = LIVE_JOB_CACHE
+        filtered_jobs.append(job)
 
-    else:
+    area_list = [
+        "전국", "서울", "경기", "인천", "강원",
+        "충북", "충남", "전북", "전남",
+        "경북", "경남", "제주"
+    ]
 
-        filtered_jobs = []
+    buttons = ""
 
-        search_lower = search.lower()
-        region_lower = region.lower()
+    for item in area_list:
+        active = " active" if item == area else ""
 
-        for job in LIVE_JOB_CACHE:
-
-            title = (
-                job.get("title", "")
-                .lower()
-            )
-
-            company = (
-                job.get("company", "")
-                .lower()
-            )
-
-            location = (
-                job.get("location", "")
-                .lower()
-            )
-
-            employment = (
-                job.get("employment", "")
-                .lower()
-            )
-
-            region_match = (
-                not region_lower
-                or region_lower in location
-            )
-
-            search_match = (
-                not search_lower
-                or search_lower in title
-                or search_lower in company
-                or search_lower in location
-                or search_lower in employment
-            )
-
-            if region_match and search_match:
-
-                filtered_jobs.append(job)
-
-    # =====================================================
-    # 채용공고 카드 만들기
-    # =====================================================
+        buttons += f"""
+        <a class="area-button{active}"
+           href="/?area={item}">
+           {item}
+        </a>
+        """
 
     cards = ""
 
     for job in filtered_jobs:
-
-        job_type = job.get(
-            "type",
-            "👵👴 노인일자리"
-        )
-
-        company = job.get(
-            "company",
-            "기관명 미상"
-        )
-
-        title = job.get(
-            "title",
-            "채용공고"
-        )
-
-        location = job.get(
-            "location",
-            "지역정보 없음"
-        )
-
-        start_date = job.get(
-            "start_date",
-            ""
-        )
-
-        end_date = job.get(
-            "end_date",
-            ""
-        )
-
-        deadline = job.get(
-            "deadline",
-            ""
-        )
-
-        employment = job.get(
-            "employment",
-            ""
-        )
-
-        accept_method = job.get(
-            "accept_method",
-            ""
-        )
-
-        job_id = job.get(
-            "job_id",
-            ""
-        )
-
-        job_url = job.get(
-            "url",
-            "https://www.seniorro.or.kr/"
-        )
-
-        # HTML 특수문자 보호
-        company_html = escape(
-            str(company)
-        )
-
-        title_html = escape(
-            str(title)
-        )
-
-        location_html = escape(
-            str(location)
-        )
-
-        start_date_html = escape(
-            str(start_date)
-        )
-
-        end_date_html = escape(
-            str(end_date)
-        )
-
-        deadline_html = escape(
-            str(deadline)
-        )
-
-        employment_html = escape(
-            str(employment)
-        )
-
-        accept_method_html = escape(
-            str(accept_method)
-        )
-
-        job_id_html = escape(
-            str(job_id)
-        )
-
-        job_url_html = escape(
-            str(job_url),
-            quote=True
-        )
-
         cards += f"""
-        <a
-            href="{job_url_html}"
-            target="_blank"
-            rel="noopener noreferrer"
-            style="
-                text-decoration:none;
-                color:inherit;
-                display:block;
-            "
-        >
-
-            <div
-                style="
-                    background:white;
-                    padding:22px;
-                    margin-bottom:16px;
-                    border-radius:14px;
-                    box-shadow:
-                        0 4px 10px
-                        rgba(0,0,0,0.06);
-                    border:2px solid #e2e8f0;
-                "
-            >
-
-                <div
-                    style="
-                        display:flex;
-                        justify-content:space-between;
-                        align-items:center;
-                        margin-bottom:10px;
-                        flex-wrap:wrap;
-                        gap:8px;
-                    "
-                >
-
-                    <span
-                        style="
-                            font-size:1.15rem;
-                            color:#475569;
-                            font-weight:bold;
-                        "
-                    >
-                        🏢 {company_html}
-                    </span>
-
-                    <span
-                        style="
-                            background:#059669;
-                            color:white;
-                            padding:5px 11px;
-                            border-radius:7px;
-                            font-size:0.9rem;
-                            font-weight:bold;
-                        "
-                    >
-                        {job_type}
-                    </span>
-
-                </div>
-
-                <h2
-                    style="
-                        font-size:1.4rem;
-                        color:#1e293b;
-                        margin:
-                            0 0 14px 0;
-                        font-weight:800;
-                        line-height:1.45;
-                    "
-                >
-                    {title_html}
-                </h2>
-
-                <div
-                    style="
-                        color:#475569;
-                        font-size:1.05rem;
-                        line-height:1.8;
-                    "
-                >
-
-                    <div>
-                        📍
-                        <strong>근무지역:</strong>
-                        {location_html}
-                    </div>
-
-                    <div>
-                        💼
-                        <strong>고용형태:</strong>
-                        {employment_html or "정보 없음"}
-                    </div>
-
-                    <div>
-                        📝
-                        <strong>접수방법:</strong>
-                        {accept_method_html or "정보 없음"}
-                    </div>
-
-                    <div>
-                        📅
-                        <strong>접수기간:</strong>
-                        {start_date_html}
-                        ~
-                        {end_date_html}
-                    </div>
-
-                    <div
-                        style="
-                            color:#dc2626;
-                            font-weight:bold;
-                        "
-                    >
-                        📌
-                        <strong>접수상태:</strong>
-                        {deadline_html or "정보 없음"}
-                    </div>
-
-                    <div
-                        style="
-                            color:#94a3b8;
-                            font-size:0.85rem;
-                            margin-top:6px;
-                        "
-                    >
-                        공고번호:
-                        {job_id_html}
-                    </div>
-
-                </div>
-
-                <div
-                    style="
-                        margin-top:15px;
-                        text-align:right;
-                        color:#059669;
-                        font-weight:bold;
-                    "
-                >
-                    👉 공고 확인하기
-                </div>
-
+        <div class="job-card">
+            <div class="job-title">
+                {escape(job.get("title", "채용공고"))}
             </div>
 
-        </a>
-        """
+            <div class="job-company">
+                {escape(job.get("company", "기관명 미상"))}
+            </div>
 
-    # =====================================================
-    # 검색 결과가 없는 경우
-    # =====================================================
+            <div class="job-info">
+                📍 {escape(job.get("workplace", ""))}
+            </div>
 
-    if not cards:
+            <div class="job-info">
+                📅 {escape(job.get("start_date", ""))}
+                ~
+                {escape(job.get("end_date", ""))}
+            </div>
 
-        cards = """
-        <div
-            style="
-                text-align:center;
-                padding:50px 20px;
-                font-size:1.2rem;
-                color:#64748b;
-                font-weight:bold;
-                background:white;
-                border-radius:14px;
-                border:2px dashed #cbd5e1;
-            "
-        >
-            검색 결과가 없습니다.
-            <br><br>
-            다른 지역이나 검색어를 입력해 보세요.
+            <div class="job-info">
+                ⏰ 마감일:
+                {escape(job.get("deadline", ""))}
+            </div>
+
+            <div class="job-info">
+                💼 {escape(job.get("employment_type", ""))}
+            </div>
+
+            <div class="job-info">
+                📝 접수방법:
+                {escape(job.get("apply_method", ""))}
+            </div>
+
+            <a class="detail-button"
+               href="https://www.seniorro.or.kr/"
+               target="_blank">
+               자세히 보기
+            </a>
         </div>
         """
 
-    update_time = (
-        LAST_UPDATE_TIME
-        or "자료 확인 중"
-    )
-
-    # =====================================================
-    # HTML 전체
-    # =====================================================
+    if not cards:
+        cards = """
+        <div class="empty">
+            현재 조건에 맞는 채용공고가 없습니다.
+        </div>
+        """
 
     html = f"""
     <!DOCTYPE html>
-
     <html lang="ko">
-
     <head>
-
         <meta charset="UTF-8">
-
-        <meta
-            name="viewport"
-            content="
-                width=device-width,
-                initial-scale=1.0
-            "
-        >
-
-        <title>
-            시니어 행복 일자리 찾기
-        </title>
+        <meta name="viewport"
+              content="width=device-width, initial-scale=1.0">
+        <title>시니어 일자리 찾기</title>
 
         <style>
-
-            body {{
-                font-family:
-                    'Malgun Gothic',
-                    Arial,
-                    sans-serif;
-
-                background-color:#f8fafc;
-
-                margin:0;
-                padding:0;
+            * {{
+                box-sizing: border-box;
             }}
 
-            .container {{
-                max-width:850px;
-
-                margin:0 auto;
-
-                padding:20px;
+            body {{
+                margin: 0;
+                font-family: Arial, "Malgun Gothic", sans-serif;
+                background: #f5f7fa;
+                color: #222;
             }}
 
             .header {{
-                text-align:center;
+                background: #ffffff;
+                padding: 28px 20px;
+                border-bottom: 1px solid #ddd;
+            }}
 
-                padding:35px 20px;
+            .container {{
+                max-width: 1100px;
+                margin: 0 auto;
+            }}
 
-                background:
-                    linear-gradient(
-                        135deg,
-                        #059669,
-                        #10b981
-                    );
+            h1 {{
+                margin: 0 0 8px 0;
+                font-size: 32px;
+            }}
 
-                color:white;
+            .subtitle {{
+                color: #666;
+                font-size: 17px;
+            }}
 
-                border-radius:16px;
+            .search-box {{
+                margin-top: 20px;
+                display: flex;
+                gap: 10px;
+            }}
 
-                margin-bottom:22px;
+            .search-box input {{
+                flex: 1;
+                padding: 15px;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                font-size: 17px;
+            }}
 
+            .search-box button {{
+                padding: 15px 24px;
+                border: 0;
+                border-radius: 8px;
+                background: #333;
+                color: white;
+                font-size: 17px;
+                cursor: pointer;
+            }}
+
+            .area-list {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 20px 0;
+            }}
+
+            .area-button {{
+                text-decoration: none;
+                padding: 10px 16px;
+                border-radius: 20px;
+                background: #ffffff;
+                color: #333;
+                border: 1px solid #ddd;
+            }}
+
+            .area-button.active {{
+                background: #333;
+                color: #fff;
+            }}
+
+            .status {{
+                margin: 15px 0;
+                color: #666;
+                font-size: 14px;
+            }}
+
+            .job-list {{
+                display: grid;
+                grid-template-columns:
+                    repeat(auto-fit, minmax(300px, 1fr));
+                gap: 18px;
+            }}
+
+            .job-card {{
+                background: white;
+                border-radius: 12px;
+                padding: 22px;
                 box-shadow:
-                    0 4px 10px
-                    rgba(0,0,0,0.1);
+                    0 2px 8px rgba(0,0,0,0.08);
             }}
 
-            .header h1 {{
-                margin:
-                    0 0 10px 0;
-
-                font-size:2.25rem;
-
-                font-weight:900;
+            .job-title {{
+                font-size: 20px;
+                font-weight: bold;
+                margin-bottom: 12px;
+                line-height: 1.4;
             }}
 
-            .header p {{
-                margin:0;
-
-                font-size:1.15rem;
+            .job-company {{
+                font-weight: bold;
+                margin-bottom: 12px;
             }}
 
-            .update-time {{
-                margin-top:12px;
-
-                font-size:0.9rem;
-
-                opacity:0.9;
+            .job-info {{
+                margin: 8px 0;
+                color: #555;
+                line-height: 1.5;
             }}
 
-            .search-panel {{
-                background:white;
-
-                padding:20px;
-
-                border-radius:14px;
-
-                margin-bottom:22px;
-
-                box-shadow:
-                    0 2px 8px
-                    rgba(0,0,0,0.05);
+            .detail-button {{
+                display: inline-block;
+                margin-top: 15px;
+                padding: 11px 18px;
+                border-radius: 7px;
+                background: #333;
+                color: white;
+                text-decoration: none;
             }}
 
-            .search-row {{
-                display:flex;
-
-                gap:10px;
-
-                margin-bottom:12px;
+            .empty {{
+                background: white;
+                padding: 40px;
+                text-align: center;
+                border-radius: 12px;
             }}
 
-            .search-input,
-            .region-input {{
-                flex:1;
-
-                padding:15px;
-
-                font-size:1.1rem;
-
-                border:
-                    2px solid #cbd5e1;
-
-                border-radius:10px;
-
-                font-weight:bold;
-
-                box-sizing:border-box;
-            }}
-
-            .search-input:focus,
-            .region-input:focus {{
-                border-color:#10b981;
-
-                outline:none;
-            }}
-
-            .search-btn {{
-                padding:0 25px;
-
-                font-size:1.1rem;
-
-                background-color:#10b981;
-
-                color:white;
-
-                border:none;
-
-                border-radius:10px;
-
-                font-weight:bold;
-
-                cursor:pointer;
-            }}
-
-            .search-btn:hover {{
-                background-color:#059669;
-            }}
-
-            .region-buttons {{
-                display:flex;
-
-                gap:8px;
-
-                flex-wrap:wrap;
-
-                margin-top:8px;
-            }}
-
-            .region-buttons a {{
-                text-decoration:none;
-
-                background:#f1f5f9;
-
-                color:#334155;
-
-                padding:8px 13px;
-
-                border-radius:8px;
-
-                font-size:0.95rem;
-
-                font-weight:bold;
-            }}
-
-            .region-buttons a:hover {{
-                background:#d1fae5;
-
-                color:#047857;
-            }}
-
-            .result-info {{
-                font-size:1rem;
-
-                color:#475569;
-
-                margin:
-                    0 0 14px 4px;
-
-                font-weight:bold;
-            }}
-
-            @media(max-width:600px) {{
-
-                .container {{
-                    padding:12px;
+            @media (max-width: 600px) {{
+                h1 {{
+                    font-size: 26px;
                 }}
 
-                .header h1 {{
-                    font-size:1.8rem;
+                .search-box {{
+                    flex-direction: column;
                 }}
 
-                .search-row {{
-                    flex-direction:column;
+                .search-box button {{
+                    width: 100%;
                 }}
-
-                .search-btn {{
-                    padding:15px;
-                }}
-
             }}
-
         </style>
-
     </head>
 
     <body>
+        <div class="header">
+            <div class="container">
+                <h1>시니어 일자리 찾기</h1>
 
-        <div class="container">
-
-            <div class="header">
-
-                <h1>
-                    👵👴 어르신 맞춤 일자리 찾기
-                </h1>
-
-                <p>
-                    전국의 노인일자리 정보를
-                    검색해 보세요.
-                </p>
-
-                <div class="update-time">
-                    🔄 마지막 자료 확인:
-                    {escape(update_time)}
+                <div class="subtitle">
+                    전국 노인일자리 채용정보를 쉽게 찾아보세요.
                 </div>
 
-            </div>
+                <form
+                    class="search-box"
+                    method="get"
+                    action="/">
 
+                    <input
+                        type="text"
+                        name="keyword"
+                        value="{escape(keyword)}"
+                        placeholder="일자리, 기관명, 지역 등을 검색하세요">
 
-            <div class="search-panel">
+                    <input
+                        type="hidden"
+                        name="area"
+                        value="{escape(area)}">
 
-                <form method="get">
-
-                    <div class="search-row">
-
-                        <input
-                            type="text"
-                            name="region"
-                            class="region-input"
-                            placeholder="
-                                지역:
-                                예) 강원, 동해, 삼척
-                            "
-                            value="
-                                {escape(
-                                    region,
-                                    quote=True
-                                )}
-                            "
-                        >
-
-                        <input
-                            type="text"
-                            name="search"
-                            class="search-input"
-                            placeholder="
-                                일자리:
-                                예) 경비, 미화, 청소
-                            "
-                            value="
-                                {escape(
-                                    search,
-                                    quote=True
-                                )}
-                            "
-                        >
-
-                        <button
-                            type="submit"
-                            class="search-btn"
-                        >
-                            검색
-                        </button>
-
-                    </div>
-
+                    <button type="submit">
+                        검색
+                    </button>
                 </form>
-
-
-                <div
-                    style="
-                        margin-top:10px;
-                        color:#64748b;
-                        font-size:0.9rem;
-                    "
-                >
-                    지역을 입력하지 않으면
-                    전국 자료를 검색합니다.
-                </div>
-
-
-                <div class="region-buttons">
-
-                    <a href="/">
-                        전국
-                    </a>
-
-                    <a href="/?region=서울">
-                        서울
-                    </a>
-
-                    <a href="/?region=경기">
-                        경기
-                    </a>
-
-                    <a href="/?region=인천">
-                        인천
-                    </a>
-
-                    <a href="/?region=강원">
-                        강원
-                    </a>
-
-                    <a href="/?region=충북">
-                        충북
-                    </a>
-
-                    <a href="/?region=충남">
-                        충남
-                    </a>
-
-                    <a href="/?region=전북">
-                        전북
-                    </a>
-
-                    <a href="/?region=전남">
-                        전남
-                    </a>
-
-                    <a href="/?region=경북">
-                        경북
-                    </a>
-
-                    <a href="/?region=경남">
-                        경남
-                    </a>
-
-                    <a href="/?region=제주">
-                        제주
-                    </a>
-
-                </div>
-
             </div>
-
-
-            <div class="result-info">
-
-                검색 결과:
-                {len(filtered_jobs)}
-                건
-
-                {
-                    (
-                        " / 지역: "
-                        + escape(region)
-                        if region
-                        else " / 전국"
-                    )
-                }
-
-                {
-                    (
-                        " / 검색어: "
-                        + escape(search)
-                        if search
-                        else ""
-                    )
-                }
-
-            </div>
-
-
-            <div class="job-list">
-
-                {cards}
-
-            </div>
-
         </div>
 
-    </body>
+        <main class="container">
+            <div class="area-list">
+                {buttons}
+            </div>
 
+            <div class="status">
+                현재 표시: {len(filtered_jobs)}건
+                <br>
+                마지막 갱신:
+                {LAST_UPDATE_TIME or "갱신 정보 없음"}
+            </div>
+
+            <div class="job-list">
+                {cards}
+            </div>
+        </main>
+    </body>
     </html>
     """
 
-    return HTMLResponse(
-        content=html,
-        status_code=200
-    )
+    return HTMLResponse(content=html)
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "jobs": len(LIVE_JOB_CACHE),
+        "last_update": LAST_UPDATE_TIME
+    }
