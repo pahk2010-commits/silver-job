@@ -253,7 +253,42 @@ async def home(
     keyword = keyword.strip()
     area = area.strip()
 
+    # 기본적으로 현재 캐시 사용
     jobs = LIVE_JOB_CACHE
+
+    # 지역이나 키워드 검색을 하면 여러 페이지를 조회
+    if keyword or area != "전국":
+        search_jobs = []
+
+        for page in range(1, 11):
+            page_jobs = fetch_senior_jobs(
+                page_no=page,
+                num_of_rows=DEFAULT_ROWS,
+                keyword="",
+                area="전국"
+            )
+
+            if not page_jobs:
+                break
+
+            search_jobs.extend(page_jobs)
+
+        # job_id 기준 중복 제거
+        seen = set()
+        jobs = []
+
+        for job in search_jobs:
+            job_id = job.get("job_id", "")
+
+            if job_id and job_id in seen:
+                continue
+
+            if job_id:
+                seen.add(job_id)
+
+            jobs.append(job)
+
+    # 검색 결과 필터링
     filtered_jobs = []
 
     for job in jobs:
