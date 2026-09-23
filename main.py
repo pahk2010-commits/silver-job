@@ -278,7 +278,7 @@ async def home(
         jobs = []
 
         for job in search_jobs:
-            job_id = job.get("job_id", "")
+            job_id = job.get("jobId", "")
 
             if job_id and job_id in seen:
                 continue
