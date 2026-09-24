@@ -265,33 +265,26 @@ async def home(
     keyword = keyword.strip()
     area = area.strip()
 
-    # 기본적으로 현재 캐시 사용
+    # 검색은 캐시 데이터에서만 처리
     jobs = LIVE_JOB_CACHE
 
-    # 지역이나 키워드 검색을 하면 여러 페이지를 조회
-    if keyword or area != "전국":
-    search_jobs = fetch_senior_jobs(
-        page_no=1,
-        num_of_rows=DEFAULT_ROWS,
-        keyword="",
-        area="전국"
-    )
-    jobs = search_jobs
+    # 검색 결과 필터링
+    filtered_jobs = []
+    for job in jobs:
+        text = " ".join([
+            job.get("company", ""),
+            job.get("title", ""),
+            job.get("workplace", ""),
+            job.get("employment_type", "")
+        ])
 
-        # job_id 기준 중복 제거
-        seen = set()
-        jobs = []
+        if keyword and keyword.lower() not in text.lower():
+            continue
 
-        for job in search_jobs:
-            job_id = job.get("jobId", "")
+        if area != "전국" and area not in text:
+            continue
 
-            if job_id and job_id in seen:
-                continue
-
-            if job_id:
-                seen.add(job_id)
-
-            jobs.append(job)
+        filtered_jobs.append(job)
 
     # 검색 결과 필터링
     filtered_jobs = []
@@ -605,5 +598,6 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
