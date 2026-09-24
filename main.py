@@ -272,11 +272,11 @@ async def home(
 
         for page in range(1, 11):
             page_jobs = fetch_senior_jobs(
-                page_no=page,
-                num_of_rows=DEFAULT_ROWS,
-                keyword="",
-                area="전국"
-            )
+    page_no=page,
+    num_of_rows=DEFAULT_ROWS,
+    keyword=keyword,
+    area=area
+)
 
             if not page_jobs:
                 break
