@@ -59,17 +59,17 @@ def fetch_senior_jobs(
     print("[노인일자리] 지역:", area)
 
     params = {
-    "serviceKey": SENIOR_JOB_API_KEY,
-    "pageNo": str(page_no),
-    "numOfRows": str(num_of_rows),
-    "_type": "xml"
-}
+        "serviceKey": SENIOR_JOB_API_KEY,
+        "pageNo": str(page_no),
+        "numOfRows": str(num_of_rows),
+        "_type": "xml"
+    }
 
-if keyword:
-    params["search"] = keyword
+    if keyword:
+        params["search"] = keyword
 
-if area and area != "전국":
-    params["workPlcNm"] = area
+    if area and area != "전국":
+        params["workPlcNm"] = area
 
     try:
         response = requests.get(
@@ -139,8 +139,11 @@ if area and area != "전국":
                 or ""
             ).strip()
 
-            job_category = (item.findtext("jobclsNm") or "").strip()
-            
+            job_category = (
+                item.findtext("jobclsNm")
+                or ""
+            ).strip()
+
             company = (
                 item.findtext("oranNm")
                 or "기관명 미상"
@@ -184,7 +187,6 @@ if area and area != "전국":
             jobs.append({
                 "jobId": job_id,
                 "job_category": job_category,
-                
                 "company": company,
                 "title": title,
                 "workplace": workplace,
