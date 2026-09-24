@@ -216,13 +216,7 @@ def refresh_live_jobs():
     global LIVE_JOB_CACHE
     global LAST_UPDATE_TIME
 
-    jobs = fetch_senior_jobs(
-        page_no=1,
-        num_of_rows=DEFAULT_ROWS,
-        keyword="",
-        area="전국"
-    )
-
+    
     if jobs:
         LIVE_JOB_CACHE = jobs
         LAST_UPDATE_TIME = datetime.now().strftime(
@@ -598,6 +592,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
