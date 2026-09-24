@@ -273,8 +273,8 @@ async def home(
     search_jobs = fetch_senior_jobs(
         page_no=1,
         num_of_rows=DEFAULT_ROWS,
-        keyword=keyword,
-        area=area
+        keyword="",
+        area="전국"
     )
     jobs = search_jobs
 
@@ -605,4 +605,5 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
