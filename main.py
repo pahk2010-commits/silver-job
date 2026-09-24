@@ -59,11 +59,17 @@ def fetch_senior_jobs(
     print("[노인일자리] 지역:", area)
 
     params = {
-        "serviceKey": SENIOR_JOB_API_KEY,
-        "pageNo": str(page_no),
-        "numOfRows": str(num_of_rows),
-        "_type": "xml"
-    }
+    "serviceKey": SENIOR_JOB_API_KEY,
+    "pageNo": str(page_no),
+    "numOfRows": str(num_of_rows),
+    "_type": "xml"
+}
+
+if keyword:
+    params["search"] = keyword
+
+if area and area != "전국":
+    params["workPlcNm"] = area
 
     try:
         response = requests.get(
@@ -133,6 +139,8 @@ def fetch_senior_jobs(
                 or ""
             ).strip()
 
+            job_category = (item.findtext("jobclsNm") or "").strip()
+            
             company = (
                 item.findtext("oranNm")
                 or "기관명 미상"
@@ -175,6 +183,8 @@ def fetch_senior_jobs(
 
             jobs.append({
                 "jobId": job_id,
+                "job_category": job_category,
+                
                 "company": company,
                 "title": title,
                 "workplace": workplace,
@@ -333,6 +343,8 @@ async def home(
             <div class="job-title">
                 {escape(job.get("title", "채용공고"))}
             </div>
+
+            <div class="job-info">📂 {escape(job.get("job_category", ""))}</div>
 
             <div class="job-company">
                 {escape(job.get("company", "기관명 미상"))}
