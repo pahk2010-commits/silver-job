@@ -441,7 +441,7 @@ async def home(
 
         buttons += f"""
         <a class="area-button{active}"
-           href="/?area={item}">
+           href="/search?keyword={keyword}&area={item}">
            {item}
         </a>
         """
