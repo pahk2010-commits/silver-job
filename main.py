@@ -380,7 +380,8 @@ async def startup_event():
     asyncio.create_task(auto_refresh())
 
 
-@app.get(("/search"), response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
+@app.get("/search", response_class=HTMLResponse)
 async def home(
     keyword: str = "",
     area: str = "전국"
