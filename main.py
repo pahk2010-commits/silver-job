@@ -434,63 +434,53 @@ async def home(
     # 검색 결과 필터링
     filtered_jobs = []
 
-for job in jobs:
-
-    # 공고의 전체 내용
-    text = " ".join([
-        job.get("company", ""),
-        job.get("title", ""),
-        job.get("workplace", ""),
-        job.get("employment_type", ""),
-        job.get("job_category", "")
-    ])
-
-    # ① 검색어가 있으면 전체 공고 내용에서 검색
-    if keyword and keyword.lower() not in text.lower():
-        continue
-
-    # ② 지역은 workplace에서만 검색
-    workplace = job.get("workplace", "")
-
-    if area != "전국":
-        if area == "동해시":
-            # 동해시 검색
-            if "동해" not in workplace:
-                continue
-        else:
-            if area not in workplace:
-                continue
-
-    filtered_jobs.append(job)
-
-    # 검색 결과 필터링
-    filtered_jobs = []
-
     for job in jobs:
-        text = " ".join([
-            job.get("company", ""),
-            job.get("title", ""),
-            job.get("workplace", ""),
-            job.get("employment_type", "")
-        ])
 
-        if keyword and keyword.lower() not in text.lower():
-            continue
+        company = job.get("company", "")
+        title = job.get("title", "")
+        workplace = job.get("workplace", "")
+        employment_type = job.get("employment_type", "")
+        job_category = job.get("job_category", "")
 
-        if area != "전국" and area not in text:
-            continue
+        # ① 지역 검색
+        if area != "전국":
 
+            if area == "동해시":
+                if "동해" not in workplace:
+                    continue
+            else:
+                if area not in workplace:
+                    continue
+
+        # ② 검색어 검색
+        if keyword:
+
+            search_text = " ".join([
+                company,
+                title,
+                workplace,
+                employment_type,
+                job_category
+            ])
+
+            if keyword.lower() not in search_text.lower():
+                continue
+
+        # ③ 모든 조건을 통과한 공고
         filtered_jobs.append(job)
 
+    # 지역 버튼
     area_list = [
-    "전국", "서울", "경기", "인천", "강원",
-    "동해시",
-    "충북", "충남", "전북", "전남",
-    "경북", "경남", "제주"
-]
+        "전국", "서울", "경기", "인천", "강원",
+        "동해시",
+        "충북", "충남", "전북", "전남",
+        "경북", "경남", "제주"
+    ]
+
     buttons = ""
 
     for item in area_list:
+
         active = " active" if item == area else ""
 
         buttons += f"""
@@ -500,16 +490,21 @@ for job in jobs:
         </a>
         """
 
+    # 채용공고 카드
     cards = ""
 
     for job in filtered_jobs:
+
         cards += f"""
         <div class="job-card">
+
             <div class="job-title">
                 {escape(job.get("title", "채용공고"))}
             </div>
 
-            <div class="job-info">📂 {escape(job.get("job_category", ""))}</div>
+            <div class="job-info">
+                📂 {escape(job.get("job_category", ""))}
+            </div>
 
             <div class="job-company">
                 {escape(job.get("company", "기관명 미상"))}
@@ -544,35 +539,52 @@ for job in jobs:
                target="_blank">
                자세히 보기
             </a>
+
         </div>
         """
 
     if not cards:
+
         cards = """
         <div class="empty">
             현재 조건에 맞는 채용공고가 없습니다.
         </div>
         """
 
-    html = f"""    
-<!DOCTYPE html>    
-<html lang="ko">    
-<head>        
-    <meta charset="UTF-8">        
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">        
-    <title>시니어 일자리 찾기</title>
+    html = f"""
+    <!DOCTYPE html>
 
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PSSZH4RN7R"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){{dataLayer.push(arguments);}}
-        gtag('js', new Date());
-        gtag('config', 'G-PSSZH4RN7R');
-    </script>
+    <html lang="ko">
+
+    <head>
+
+        <meta charset="UTF-8">
+
+        <meta name="viewport"
+              content="width=device-width, initial-scale=1.0">
+
+        <title>시니어 일자리 찾기</title>
+
+        <!-- Google Analytics -->
+
+        <script async
+            src="https://www.googletagmanager.com/gtag/js?id=G-PSSZH4RN7R">
+        </script>
+
+        <script>
+
+            window.dataLayer = window.dataLayer || [];
+
+            function gtag(){{dataLayer.push(arguments);}}
+
+            gtag('js', new Date());
+
+            gtag('config', 'G-PSSZH4RN7R');
+
+        </script>
 
         <style>
+
             * {{
                 box-sizing: border-box;
             }}
@@ -707,6 +719,7 @@ for job in jobs:
             }}
 
             @media (max-width: 600px) {{
+
                 h1 {{
                     font-size: 26px;
                 }}
@@ -718,13 +731,19 @@ for job in jobs:
                 .search-box button {{
                     width: 100%;
                 }}
+
             }}
+
         </style>
+
     </head>
 
     <body>
+
         <div class="header">
+
             <div class="container">
+
                 <h1>시니어 일자리 찾기</h1>
 
                 <div class="subtitle">
@@ -750,27 +769,38 @@ for job in jobs:
                     <button type="submit">
                         검색
                     </button>
+
                 </form>
+
             </div>
+
         </div>
 
         <main class="container">
+
             <div class="area-list">
                 {buttons}
             </div>
 
             <div class="status">
+
                 현재 표시: {len(filtered_jobs)}건
+
                 <br>
+
                 마지막 갱신:
                 {LAST_UPDATE_TIME or "갱신 정보 없음"}
+
             </div>
 
             <div class="job-list">
                 {cards}
             </div>
+
         </main>
+
     </body>
+
     </html>
     """
 
