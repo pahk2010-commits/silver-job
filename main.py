@@ -216,7 +216,13 @@ def refresh_live_jobs():
     global LIVE_JOB_CACHE
     global LAST_UPDATE_TIME
 
-    
+    jobs = fetch_senior_jobs(
+        page_no=1,
+        num_of_rows=DEFAULT_ROWS,
+        keyword="",
+        area="전국"
+    )
+
     if jobs:
         LIVE_JOB_CACHE = jobs
         LAST_UPDATE_TIME = datetime.now().strftime(
@@ -228,7 +234,6 @@ def refresh_live_jobs():
             len(jobs),
             "건"
         )
-
     else:
         print(
             "[전체] API 자료가 없어 예비자료를 표시합니다."
@@ -592,6 +597,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
