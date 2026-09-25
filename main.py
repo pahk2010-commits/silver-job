@@ -31,6 +31,45 @@ EMPLOYMENT24_URL = (
     "https://www.work24.go.kr/cm/openApi/call/wk/" "callOpenApiSvcInfo210L01.do"
 )
 
+def fetch_senior_job_detail(job_id):
+    if not job_id:
+        return {}
+
+    params = {
+        "serviceKey": SENIOR_JOB_API_KEY,
+        "id": job_id
+    }
+
+    try:
+        response = requests.get(
+            "https://apis.data.go.kr/B552474/SenuriService/getJobInfo",
+            params=params,
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            print("[상세정보] HTTP 오류:", response.status_code)
+            return {}
+
+        root = ET.fromstring(response.content)
+
+        item = root.find(".//item")
+
+        if item is None:
+            print("[상세정보] 해당 공고를 찾을 수 없습니다:", job_id)
+            return {}
+
+        detail = {}
+
+        for child in item:
+            detail[child.tag] = child.text or ""
+
+        return detail
+
+    except Exception as e:
+        print("[상세정보 오류]", e)
+        return {}
+
 DEFAULT_ROWS = 100
 REFRESH_SECONDS = 1800
 
