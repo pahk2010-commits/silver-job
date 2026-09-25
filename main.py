@@ -380,7 +380,7 @@ async def startup_event():
     asyncio.create_task(auto_refresh())
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get(("/search"), response_class=HTMLResponse)
 async def home(
     keyword: str = "",
     area: str = "전국"
@@ -429,11 +429,11 @@ async def home(
         filtered_jobs.append(job)
 
     area_list = [
-        "전국", "서울", "경기", "인천", "강원",
-        "충북", "충남", "전북", "전남",
-        "경북", "경남", "제주"
-    ]
-
+    "전국", "서울", "경기", "인천", "강원",
+    "동해시",
+    "충북", "충남", "전북", "전남",
+    "경북", "경남", "제주"
+]
     buttons = ""
 
     for item in area_list:
