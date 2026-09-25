@@ -248,7 +248,93 @@ def refresh_live_jobs():
             "[전체] API 자료가 없어 예비자료를 표시합니다."
         )
 
+def fetch_employment24_jobs():
+    print("[고용24] API 호출 시작")
 
+    if not EMPLOYMENT24_KEY:
+        print("[고용24] API 키가 없습니다.")
+        return []
+
+    params = {
+        "authKey": EMPLOYMENT24_KEY,
+        "callTp": "L",
+        "returnType": "XML",
+        "startPage": "1",
+        "display": "100"
+    }
+
+    try:
+        response = requests.get(
+            EMPLOYMENT24_URL,
+            params=params,
+            timeout=20
+        )
+
+        print("[고용24] HTTP 상태:", response.status_code)
+
+        if response.status_code != 200:
+            print("[고용24] HTTP 오류:", response.text[:500])
+            return []
+
+        root = ET.fromstring(response.content)
+
+        jobs = []
+
+        for item in root.findall(".//wanted"):
+            job_id = (
+                item.findtext("wantedAuthNo")
+                or ""
+            ).strip()
+
+            company = (
+                item.findtext("company")
+                or "기관명 미상"
+            ).strip()
+
+            title = (
+                item.findtext("title")
+                or "채용공고"
+            ).strip()
+
+            workplace = (
+                item.findtext("region")
+                or ""
+            ).strip()
+
+            deadline = (
+                item.findtext("receiptCloseDt")
+                or ""
+            ).strip()
+
+            jobs.append({
+                "jobId": "W24-" + job_id,
+                "job_category": "고용24",
+                "company": company,
+                "title": title,
+                "workplace": workplace,
+                "start_date": "",
+                "end_date": "",
+                "deadline": deadline,
+                "employment_type": "",
+                "apply_method": "고용24"
+            })
+
+        print("[고용24] 채용공고 수:", len(jobs))
+
+        return jobs
+
+    except requests.RequestException as e:
+        print("[고용24] 네트워크 오류:", e)
+        return []
+
+    except ET.ParseError as e:
+        print("[고용24] XML 파싱 오류:", e)
+        return []
+
+    except Exception as e:
+        print("[고용24] 예기치 않은 오류:", e)
+        return []
+        
 async def auto_refresh():
     while True:
         try:
@@ -606,6 +692,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
