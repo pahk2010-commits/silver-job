@@ -500,14 +500,23 @@ async def home(
         </div>
         """
 
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="ko">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport"
-              content="width=device-width, initial-scale=1.0">
-        <title>시니어 일자리 찾기</title>
+    html = f"""    
+<!DOCTYPE html>    
+<html lang="ko">    
+<head>        
+    <meta charset="UTF-8">        
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">        
+    <title>시니어 일자리 찾기</title>
+
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PSSZH4RN7R"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){{dataLayer.push(arguments);}}
+        gtag('js', new Date());
+        gtag('config', 'G-PSSZH4RN7R');
+    </script>
 
         <style>
             * {{
@@ -721,6 +730,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
