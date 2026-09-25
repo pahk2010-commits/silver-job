@@ -225,12 +225,22 @@ def refresh_live_jobs():
     global LIVE_JOB_CACHE
     global LAST_UPDATE_TIME
 
-    senior_jobs = fetch_senior_jobs(
-        page_no=1,
-        num_of_rows=DEFAULT_ROWS,
-        keyword="",
-        area="전국"
-    )
+    senior_jobs = []
+
+    # 노인일자리 전국 자료를 여러 페이지 수집
+    for page in range(1, 11):
+        page_jobs = fetch_senior_jobs(
+            page_no=page,
+            num_of_rows=100,
+            keyword="",
+            area="전국"
+        )
+
+        senior_jobs.extend(page_jobs)
+
+        # 마지막 페이지이면 종료
+        if len(page_jobs) < 100:
+            break
 
     employment24_jobs = fetch_employment24_jobs()
 
@@ -711,6 +721,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
