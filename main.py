@@ -22,6 +22,15 @@ SENIOR_JOB_API_KEY = unquote(
     ).strip()
 )
 
+EMPLOYMENT24_KEY = os.getenv(
+    "EMPLOYMENT24_KEY",
+    ""
+).strip()
+
+EMPLOYMENT24_URL = (
+    "https://www.work24.go.kr/cm/openApi/call/wk/" "callOpenApiSvcInfo210L01.do"
+)
+
 DEFAULT_ROWS = 100
 REFRESH_SECONDS = 1800
 
@@ -597,6 +606,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
