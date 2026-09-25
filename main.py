@@ -367,7 +367,6 @@ async def auto_refresh():
 
 @app.on_event("startup")
 async def startup_event():
-    refresh_live_jobs()
     asyncio.create_task(auto_refresh())
 
 
@@ -712,6 +711,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
