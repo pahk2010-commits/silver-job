@@ -294,6 +294,8 @@ def fetch_employment24_jobs():
             print("[고용24] HTTP 오류:", response.text[:500])
             return []
 
+        print("[고용24] 응답 앞부분:", response.text[:2000])
+
         root = ET.fromstring(response.content)
 
         jobs = []
@@ -710,6 +712,7 @@ async def health():
         "jobs": len(LIVE_JOB_CACHE),
         "last_update": LAST_UPDATE_TIME
     }
+
 
 
 
