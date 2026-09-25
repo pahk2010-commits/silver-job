@@ -394,21 +394,35 @@ async def home(
 
     # 검색 결과 필터링
     filtered_jobs = []
-    for job in jobs:
-        text = " ".join([
-            job.get("company", ""),
-            job.get("title", ""),
-            job.get("workplace", ""),
-            job.get("employment_type", "")
-        ])
 
-        if keyword and keyword.lower() not in text.lower():
-            continue
+for job in jobs:
 
-        if area != "전국" and area not in text:
-            continue
+    # 공고의 전체 내용
+    text = " ".join([
+        job.get("company", ""),
+        job.get("title", ""),
+        job.get("workplace", ""),
+        job.get("employment_type", ""),
+        job.get("job_category", "")
+    ])
 
-        filtered_jobs.append(job)
+    # ① 검색어가 있으면 전체 공고 내용에서 검색
+    if keyword and keyword.lower() not in text.lower():
+        continue
+
+    # ② 지역은 workplace에서만 검색
+    workplace = job.get("workplace", "")
+
+    if area != "전국":
+        if area == "동해시":
+            # 동해시 검색
+            if "동해" not in workplace:
+                continue
+        else:
+            if area not in workplace:
+                continue
+
+    filtered_jobs.append(job)
 
     # 검색 결과 필터링
     filtered_jobs = []
